@@ -26,3 +26,4 @@ if __name__ == "__main__":
     X = np.random.rand(m, n)
     y = 5 * X + np.random.randn(m, n) * 0.1
     W = linear_regression_normal_equation(X, y)
+    print(W)
