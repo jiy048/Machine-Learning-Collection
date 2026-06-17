@@ -60,3 +60,4 @@ if __name__ == "__main__":
     y = 3 * X + 5 + np.random.randn(1, 500) * 0.1
     regression = LinearRegression()
     w = regression.main(X, y)
+    print(w)
