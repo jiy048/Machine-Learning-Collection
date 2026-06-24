@@ -1,9 +1,9 @@
 """
 Implementation of Linear Regression using Gradient Descent.
 
-Let m = #training examples, n = #number of features Sizes differ 
-a little bit from blog notation. It takes as input the following: 
-y is R^(1 x m), X is R^(n x m), w is R^(n x 1)
+Let m = #training examples and n = #number of features. It takes
+as input the following: y is R^(m x 1), X is R^(m x n),
+w is R^(n x 1)
 
 Programmed by Aladdin Persson <aladdin.persson at hotmail dot com>
 *    2020-04-03 Initial coding
@@ -20,7 +20,7 @@ class LinearRegression:
         self.print_cost = print_cost
 
     def y_hat(self, X, w):
-        return np.dot(w.T, X)
+        return np.dot(X, w)
 
     def cost(self, yhat, y):
         C = 1 / self.m * np.sum(np.power(yhat - y, 2))
@@ -28,18 +28,18 @@ class LinearRegression:
         return C
 
     def gradient_descent(self, w, X, y, yhat):
-        dCdW = 2 / self.m * np.dot(X, (yhat - y).T)
+        dCdW = 2 / self.m * np.dot(X.T, yhat - y)
         w = w - self.learning_rate * dCdW
 
         return w
 
     def main(self, X, y):
         # Add x1 = 1
-        ones = np.ones((1, X.shape[1]))
-        X = np.append(ones, X, axis=0)
+        ones = np.ones((X.shape[0], 1))
+        X = np.append(ones, X, axis=1)
 
-        self.m = X.shape[1]
-        self.n = X.shape[0]
+        self.m = X.shape[0]
+        self.n = X.shape[1]
 
         w = np.zeros((self.n, 1))
 
@@ -56,8 +56,8 @@ class LinearRegression:
 
 
 if __name__ == "__main__":
-    X = np.random.rand(1, 500)
-    y = 3 * X + 5 + np.random.randn(1, 500) * 0.1
+    X = np.random.rand(500, 1)
+    y = 3 * X + 5 + np.random.randn(500, 1) * 0.1
     regression = LinearRegression()
     w = regression.main(X, y)
     print(w)
