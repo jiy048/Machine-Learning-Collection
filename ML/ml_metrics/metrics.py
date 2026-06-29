@@ -5,35 +5,27 @@ import warnings
 
 
 def true_positives(y_true, y_pred):
-    tp = 0
-    for label, pred in zip(y_true, y_pred):
-        if pred == 1 and label == 1:
-            tp += 1
-    return tp
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+    return np.sum((y_pred == 1) & (y_true == 1))
 
 
 def true_negatives(y_true, y_pred):
-    tn = 0
-    for label, pred in zip(y_true, y_pred):
-        if pred == 0 and label == 0:
-            tn += 1
-    return tn
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+    return np.sum((y_pred == 0) & (y_true == 0))
 
 
 def false_positives(y_true, y_pred):
-    fp = 0
-    for label, pred in zip(y_true, y_pred):
-        if pred == 1 and label == 0:
-            fp += 1
-    return fp
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+    return np.sum((y_pred == 1) & (y_true == 0))
 
 
 def false_negatives(y_true, y_pred):
-    fn = 0
-    for label, pred in zip(y_true, y_pred):
-        if pred == 0 and label == 1:
-            fn += 1
-    return fn
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+    return np.sum((y_pred == 0) & (y_true == 1))
 
 
 def binary_accuracy(y_true, y_pred):
@@ -67,11 +59,9 @@ def recall(y_true, y_pred):
 
 
 def multiclass_accuracy(y_true, y_pred):
-    correct = 0
-    total = len(y_true)
-    for label, pred in zip(y_true, y_pred):
-        correct += label == pred
-    return correct/total
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+    return np.mean(y_true == y_pred)
 
 
 def confusion_matrix(y_true, y_pred):
@@ -79,10 +69,10 @@ def confusion_matrix(y_true, y_pred):
     y_pred = np.array(y_pred)
     assert y_true.shape == y_pred.shape
     unique_classes = np.unique(np.concatenate([y_true, y_pred], axis=0)).shape[0]
-    cm = np.zeros((unique_classes, unique_classes), dtype=np.int64)
-
-    for label, pred in zip(y_true, y_pred):
-        cm[label, pred] += 1
+    cm = np.bincount(
+        unique_classes * y_true + y_pred,
+        minlength=unique_classes * unique_classes,
+    ).reshape(unique_classes, unique_classes)
 
     return cm
 
@@ -168,18 +158,20 @@ def f1score_cm(cm, average="specific", class_label=1):
 
 
 def roc_curve(y_true, y_preds, plot_graph=True, calculate_AUC=True, threshold_step=0.01):
-    TPR, FPR = [], []
+    y_true = np.array(y_true)
+    y_preds = np.array(y_preds)
+    thresholds = np.arange(np.min(y_preds), np.max(y_preds), threshold_step)
+    predictions = y_preds.reshape(1, -1) > thresholds.reshape(-1, 1)
+    tp = np.sum((predictions == 1) & (y_true == 1), axis=1)
+    fn = np.sum((predictions == 0) & (y_true == 1), axis=1)
+    tn = np.sum((predictions == 0) & (y_true == 0), axis=1)
+    fp = np.sum((predictions == 1) & (y_true == 0), axis=1)
 
-    for threshold in np.arange(np.min(y_preds), np.max(y_preds), threshold_step):
-        predictions = (y_preds > threshold) * 1
-        cm = confusion_matrix(y_true, predictions)
-        recalls = recall_cm(cm, average="none")
-        # note TPR == sensitivity == recall
-        tpr = recalls[1]
-        # note tnr == specificity (which is same as recall for the negative class)
-        tnr = recalls[0]
-        TPR.append(tpr)
-        FPR.append(1-tnr)
+    # note TPR == sensitivity == recall
+    TPR = tp / (tp + fn + 1e-12)
+    # note TNR == specificity, which is the recall for the negative class
+    tnr = tn / (tn + fp + 1e-12)
+    FPR = 1 - tnr
 
     if plot_graph:
         plt.plot(FPR, TPR)
@@ -193,18 +185,21 @@ def roc_curve(y_true, y_preds, plot_graph=True, calculate_AUC=True, threshold_st
 
 
 def precision_recall_curve(y_true, y_preds, plot_graph=True, calculate_AUC=True, threshold_step=0.01):
-    recalls, precisions = [], []
+    y_true = np.array(y_true)
+    y_preds = np.array(y_preds)
+    thresholds = np.arange(np.min(y_preds), np.max(y_preds), threshold_step)
+    predictions = y_preds.reshape(1, -1) > thresholds.reshape(-1, 1)
+    tp = np.sum((predictions == 1) & (y_true == 1), axis=1)
+    fp = np.sum((predictions == 1) & (y_true == 0), axis=1)
+    fn = np.sum((predictions == 0) & (y_true == 1), axis=1)
 
-    for threshold in np.arange(np.min(y_preds), np.max(y_preds), threshold_step):
-        predictions = (y_preds > threshold) * 1
-        cm = confusion_matrix(y_true, predictions)
-        recall = recall_cm(cm, average="specific", class_label=1)
-        precision = precision_cm(cm, average="specific", class_label=1)
-        recalls.append(recall)
-        precisions.append(precision)
+    # handle分母为0的情况
+    recalls = tp / (tp + fn + 1e-12)
+    precisions = tp / (tp + fp + 1e-12)
 
-    recalls.append(0)
-    precisions.append(1)
+    # handle tp == 0 的情况
+    recalls = np.append(recalls, 0)
+    precisions = np.append(precisions, 1)
 
     if plot_graph:
         plt.plot(recalls, precisions)
@@ -217,15 +212,34 @@ def precision_recall_curve(y_true, y_preds, plot_graph=True, calculate_AUC=True,
         print(np.abs(np.trapz(precisions, recalls)))
 
 
-y = []
-probs = []
-with open("data.txt") as f:
-    for line in f.readlines():
-        label, pred = line.split()
-        label = int(label)
-        pred = float(pred)
-        y.append(label)
-        probs.append(pred)
+def average_precision(y_true, y_preds, eps=1e-12):
+    # Average Precision is not the same as the trapezoidal PR AUC above.
+    # PR AUC uses linear interpolation between precision-recall points, which
+    # can be optimistic for PR curves. AP uses a step-wise interpolation where
+    # each precision is weighted by the increase in recall.
+    y_true = np.array(y_true)
+    y_preds = np.array(y_preds)
+
+    sorted_indices = np.argsort(-y_preds)
+    y_true = y_true[sorted_indices]
+    y_preds = y_preds[sorted_indices]
+
+    distinct_value_indices = np.where(np.diff(y_preds))[0]
+    threshold_indices = np.append(distinct_value_indices, y_true.shape[0] - 1)
+
+    tp = np.cumsum(y_true == 1)[threshold_indices]
+    fp = np.cumsum(y_true == 0)[threshold_indices]
+
+    precisions = tp / (tp + fp + eps)
+    recalls = tp / (np.sum(y_true == 1) + eps)
+
+    recall_differences = np.diff(np.append(0, recalls))
+    return np.sum(recall_differences * precisions)
+
+
+data = np.loadtxt("data.txt")
+y = data[:, 0].astype(int)
+probs = data[:, 1]
 
 precision_recall_curve(y, probs, threshold_step=0.001)
 #from sklearn.metrics import precision_recall_curve
@@ -236,5 +250,3 @@ precision_recall_curve(y, probs, threshold_step=0.001)
 #plt.title("Precision-Recall curve")
 #plt.show()
 #print(np.abs(np.trapz(precisions, recalls)))
-
-
